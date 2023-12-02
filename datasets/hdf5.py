@@ -34,8 +34,8 @@ class FlightSimulator:
 
     def __init__(self,
                  h5filename: str,
-                 delta_time: tuple[float, float] = (0.5, 0.1),
-                 max_time: float = 1.0):
+                 delta_time: tuple[float, float] = (500, 100),
+                 max_time: float = 1000):
         """
         Args:
             h5filename: str
@@ -62,10 +62,8 @@ class FlightSimulator:
             obj: h5py.Dataset
                 Dataset object.
         """
-        if not isinstance(obj, h5py.Dataset):
-            return None
-
-        self.datasets.append((name, obj))
+        if isinstance(obj, h5py.Dataset):
+            self.datasets.append((name, obj))
 
 
     def generator(self, seed=None):
@@ -84,15 +82,24 @@ class FlightSimulator:
                     return None
 
                 name, dataset = self.datasets[current]
+                print(f'Current dataset: {name} ({dataset.attrs["time"]})')
 
                 next_time = dataset.attrs['time'] + rng.normal(*self.delta_time)
                 limit_time = dataset.attrs['time'] + self.max_time
 
-                while (after := current + 1) < len(self.datasets):
+                print(f'\tNext time must be between {next_time} and {limit_time}')
+
+                after = current + 1
+                while after < len(self.datasets):
 
                     _, next_dataset = self.datasets[after]
+                    print(f'\tNext dataset: {next_dataset.name} ({next_dataset.attrs["time"]})')
 
                     if next_dataset.attrs['time'] >= next_time and next_dataset.attrs['time'] < limit_time:
+                        break
+
+                    if dataset.attrs['video_filename'] != next_dataset.attrs['video_filename']:
+                        current = after
                         break
 
                     if next_dataset.attrs['time'] >= limit_time:
@@ -107,4 +114,5 @@ class FlightSimulator:
                 if after >= len(self.datasets):
                     return None
 
-                yield (frame_from_dataset(dataset), frame_from_dataset(dataset))
+                yield (frame_from_dataset(dataset), frame_from_dataset(next_dataset))
+                current += 1
