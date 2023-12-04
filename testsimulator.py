@@ -1,4 +1,4 @@
-from datasets.hdf5 import FlightSimulator
+from datasets.hdf5 import FlightSimulator, polar2cartesian
 import numpy as np
 import h5py
 
@@ -7,4 +7,4 @@ simulator = FlightSimulator(file)
 
 rng = np.random.default_rng()
 for segment in simulator.generate(rng):
-    print(segment.distance, segment.bearing)
+    print(*polar2cartesian((segment.distance, segment.bearing)))

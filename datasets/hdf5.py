@@ -194,11 +194,27 @@ def convert_segment_to_array(segment: FlightSegment, max_altitude: float) -> np.
     ], axis=2)
 
 
+def polar2cartesian(polar: tuple[float, float]) -> tuple[float, float]:
+    """Converts polar coordinates to cartesian coordinates.
+
+    Args:
+        polar: tuple[float, float]
+            Tuple with the distance and bearing.
+
+    Returns:
+        tuple[float, float]
+            Tuple with the cartesian coordinates.
+    """
+    distance, bearing = polar
+    bearing = math.radians(bearing)
+    return (distance * math.cos(bearing), distance * math.sin(bearing))
+
+
 def convert_batch_for_nn(batch: list[FlightSegment], max_altitude: float):
     return (
         np.stack([
             convert_segment_to_array(segment, max_altitude) for segment in batch], axis=0),
-        np.stack([(segment.distance, segment.bearing / 360.0) for segment in batch], axis=0))
+        np.stack([polar2cartesian((segment.distance, segment.bearing)) for segment in batch], axis=0))
 
 
 def reverse_segment(segment: FlightSegment) -> FlightSegment:
