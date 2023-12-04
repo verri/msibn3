@@ -2,5 +2,6 @@ from datasets.hdf5 import FlightSimulator
 
 simulator = FlightSimulator("pqtec-20231128.hdf5")
 
-for frame in simulator.generator():
-    print(frame.distance, frame.bearing)
+rng = np.random.default_rng()
+for segment in simulator.generate(rng):
+    print(segment.distance, segment.bearing)

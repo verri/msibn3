@@ -89,9 +89,8 @@ class FlightSimulator:
             self.datasets.append((name, obj))
 
 
-    def generator(self, seed=None):
+    def generate(self, rng: np.random.Generator):
 
-        rng = np.random.default_rng(seed)
         geod = Geodesic.WGS84
 
         with h5py.File(self.h5filename, 'r') as f:
@@ -159,3 +158,69 @@ class FlightSimulator:
                     bearing=bearing,
                 )
                 current += 1
+
+
+def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
+    """Converts a frame to a numpy array.
+
+    Args:
+        frame: Frame
+            Frame object.
+
+    Returns:
+        np.ndarray
+            Numpy array with the frame data.
+    """
+    return np.concatenate([
+        frame.data / 255.0,
+        np.full((frame.data.shape[0], frame.data.shape[1], 1), frame.yaw / 360.0),
+        np.full((frame.data.shape[0], frame.data.shape[1], 1), frame.altitude / max_altitude),
+    ], axis=2)
+
+
+def convert_segment_to_array(segment: FlightSegment, max_altitude: float) -> np.ndarray:
+    """Converts a flight segment to a numpy array.
+
+    Args:
+        segment: FlightSegment
+            Flight segment object.
+
+    Returns:
+        np.ndarray
+            Numpy array with the flight segment data.
+    """
+    return np.concatenate([
+        convert_frame_to_array(segment.frames[i], max_altitude) for i in range(2)
+    ], axis=2)
+
+
+def convert_batch_for_nn(batch: list[FlightSegment], max_altitude: float):
+    return np.stack([
+        convert_segment_to_array(segment, max_altitude) for segment in batch
+    ], axis=0)
+
+
+class TrainingGenerator:
+
+    def __init__(self, simulator: FlightSimulator, batch_size: int = 64):
+        """
+        Args:
+            simulator: FlightSimulator
+                Flight simulator object.
+            batch_size: int
+                Number of flight segments to generate per batch.
+        """
+
+        self.simulator = simulator
+        self.batch_size = batch_size
+
+
+    def generate(self, rng: np.random.Generator):
+
+        batch = []
+        while True:
+            for segment in simulator.generate(rng):
+                batch.append(segment)
+                if len(batch) == self.batch_size:
+                    yield convert_batch_for_nn(batch)
+                    batch = []
