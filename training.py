@@ -1,82 +1,18 @@
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input
-from tensorflow.keras.layers import Conv2D
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.layers import Dropout
-from tensorflow.keras.layers import MaxPooling2D, AveragePooling2D
-from tensorflow.keras.layers import BatchNormalization
-from tensorflow.keras.layers import concatenate
-from tensorflow.keras.layers import Flatten
-from tensorflow.keras.callbacks import ModelCheckpoint
-from tensorflow.keras.losses import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError, KLDivergence
-from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.layers import Dense, Conv2D
 
-# Input consists of a 160x90x5 array.
-# The first channel is the grayscale image at time t.
-# The second channel is the grayscale image at time t+1.
-# The third channel is the value of the altitude from the ground at time t repeated in the entire image.
-# The fourth channel is the value of the altitude from the ground at time t+1 repeated in the entire image.
-# The fifth channel is the value of the gimbal yaw repeated in the entire image.
-#
-# The ideia is that
-INPUT_SHAPE = (160, 90, 5)
+# Input consists of a 160x90x6 array.
+# The first 3 channels correspond to the grayscale image, altitude, and heading (yaw).
+# The last 3 channels correspond to the grayscale image, altitude, and heading (yaw) of the next frame.
+
+INPUT_SHAPE = (160, 90, 6)
 
 BATCH_SIZE = 64
 EPOCHS = 50
 
-MODEL_PATH = f"checkpoints/position_pred_model"
+MODEL_PATH = f"checkpoint"
 TRAIN_HDF5 = f"training.hdf5"
 VALID_HDF5 = f"validation.hdf5"
 TEST_HDF5 = f"test.hdf5"
-
-# Given a HDF5 file, this class generates batches of data.
-class HDF5DatasetGenerator:
-
-    def __init__(self, filename, batch_size):
-        self.batch_size = batch_size
-        self.db = h5py.File(filename)
-        self.input_size = self.db["x"].shape[0]
-
-
-    def random_generator(self):
-        while True:
-            # random index to change order of the batches
-            ix = np.random.permutation(np.arange(0, self.input_size))
-
-            for i in np.arange(0, self.input_size, self.batch_size):
-                pos = ix[i: i + self.batch_size]
-
-                img1 = self.db["img1"][pos]
-                img2 = self.db["img2"][pos]
-                alt1 = self.db["alt1"][pos]
-                alt2 = self.db["alt2"][pos]
-                yaw = self.db["yaw"][pos]
-
-                x = self.db["x"][pos]
-                y = self.db["y"][pos]
-
-                yield ([img1, img2, alt1, alt2, yaw], [x, y])
-
-
-    def generator(self):
-        while True:
-            for i in np.arange(0, self.input_size, self.batch_size):
-                img1 = self.db["img1"][i: i + self.batch_size]
-                img2 = self.db["img2"][i: i + self.batch_size]
-                alt1 = self.db["alt1"][i: i + self.batch_size]
-                alt2 = self.db["alt2"][i: i + self.batch_size]
-                yaw = self.db["yaw"][i: i + self.batch_size]
-
-                x = self.db["x"][i: i + self.batch_size]
-                y = self.db["y"][i: i + self.batch_size]
-
-                yield ([img1, img2, alt1, alt2, yaw], [x, y])
-
-
-    def close(self):
-        self.db.close()
-
 
 # Load the data
 train_data = HDF5DatasetGenerator(TRAIN_HDF5, BATCH_SIZE)
