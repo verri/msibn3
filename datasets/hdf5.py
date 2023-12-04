@@ -201,9 +201,18 @@ def convert_batch_for_nn(batch: list[FlightSegment], max_altitude: float):
         np.stack([(segment.distance, segment.bearing / 360.0) for segment in batch], axis=0))
 
 
+def reverse_segment(segment: FlightSegment) -> FlightSegment:
+    return FlightSegment(
+        frames=[segment.frames[1], segment.frames[0]],
+        distance=segment.distance,
+        bearing=(segment.bearing + 180) % 360
+    )
+
+
 class DataGenerator:
 
-    def __init__(self, simulator: FlightSimulator, max_altitude: float, batch_size: int):
+    def __init__(self, simulator: FlightSimulator, max_altitude: float,
+            batch_size: int, augment: bool = False):
         """
         Args:
             simulator: FlightSimulator
@@ -215,6 +224,7 @@ class DataGenerator:
         self.simulator = simulator
         self.max_altitude = max_altitude
         self.batch_size = batch_size
+        self.augment = augment
 
 
     def generate(self, rng: np.random.Generator):
@@ -224,5 +234,9 @@ class DataGenerator:
             for segment in self.simulator.generate(rng):
                 batch.append(segment)
                 if len(batch) == self.batch_size:
-                    yield convert_batch_for_nn(batch, max_altitude=self.max_altitude)
+                    data = convert_batch_for_nn(batch, max_altitude=self.max_altitude)
+                    yield data
+                    if self.augment:
+                        reversed_batch = [ reverse_segment(segment) for segment in batch]
+                        yield convert_batch_for_nn(reversed_batch, max_altitude=self.max_altitude)
                     batch = []

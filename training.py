@@ -36,7 +36,8 @@ valid_file = h5py.File(VALID_HDF5, 'r')
 test_file = h5py.File(TEST_HDF5, 'r')
 
 # Load the data
-train_data = DataGenerator(FlightSimulator(train_file), MAX_ALTITUDE, BATCH_SIZE)
+train_data = DataGenerator(FlightSimulator(train_file), MAX_ALTITUDE,
+        BATCH_SIZE, augment=True)
 valid_data = DataGenerator(FlightSimulator(valid_file), MAX_ALTITUDE, BATCH_SIZE)
 test_data = DataGenerator(FlightSimulator(test_file), MAX_ALTITUDE, BATCH_SIZE)
 
@@ -90,7 +91,7 @@ checkpoint = ModelCheckpoint(MODEL_PATH, monitor='val_loss', verbose=1, save_bes
 
 rng = np.random.default_rng(17)
 
-STEPS_PER_EPOCH = 4000
+STEPS_PER_EPOCH = 2000
 
 model.fit(
     train_data.generate(rng),
@@ -102,8 +103,8 @@ model.fit(
     verbose = 1)
 
 # Evaluate the model
-generator = test_data.generate(rng)
-model.evaluate(list(next(generator) for _ in range(STEPS_PER_EPOCH // 8)), verbose=1)
+# test_generator = test_data.generate(rng)
+# model.evaluate(list(next(test_generator) for _ in range(STEPS_PER_EPOCH // 8)), verbose=1)
 
 # Close the HDF5 files
 train_file.close()
