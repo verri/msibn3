@@ -1,3 +1,9 @@
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('input', type=str, help='HDF5 basename for the splits')
+args = parser.parse_args()
+
 from tensorflow.keras.layers import Dense, Conv2D
 
 # Input consists of a 160x90x6 array.
@@ -9,10 +15,10 @@ INPUT_SHAPE = (160, 90, 6)
 BATCH_SIZE = 64
 EPOCHS = 50
 
-MODEL_PATH = f"checkpoint"
-TRAIN_HDF5 = f"training.hdf5"
-VALID_HDF5 = f"validation.hdf5"
-TEST_HDF5 = f"test.hdf5"
+MODEL_PATH = f"{args.input}_checkpoint"
+TRAIN_HDF5 = f"{args.input}_train.h5"
+VALID_HDF5 = f"{args.input}_val.h5"
+TEST_HDF5 = f"{args.input}_test.h5"
 
 # Load the data
 train_data = HDF5DatasetGenerator(TRAIN_HDF5, BATCH_SIZE)
