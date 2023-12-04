@@ -76,7 +76,6 @@ class FlightSimulator:
         self.max_time = max_time
         self.datasets = []
 
-
     def _visitor(self, name, obj):
         """
         Args:
@@ -87,7 +86,6 @@ class FlightSimulator:
         """
         if isinstance(obj, h5py.Dataset):
             self.datasets.append((name, obj))
-
 
     def generate(self, rng: np.random.Generator):
 
@@ -148,11 +146,14 @@ class FlightSimulator:
             distance = g['s12']
             bearing = g['azi1']
 
-            # Must correct the bearing angle to match the convention used by the gimbal.
+            # Must correct the bearing angle to match the convention used by
+            # the gimbal.
             bearing = bearing if bearing > 0 else 360 + bearing
 
             yield FlightSegment(
-                frames=[frame_from_dataset(dataset), frame_from_dataset(next_dataset)],
+                frames=[
+                    frame_from_dataset(dataset),
+                    frame_from_dataset(next_dataset)],
                 distance=distance,
                 bearing=bearing,
             )
@@ -170,7 +171,7 @@ def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
         np.ndarray
             Numpy array with the frame data.
     """
-    layer_shape= (frame.data.shape[0], frame.data.shape[1], 1)
+    layer_shape = (frame.data.shape[0], frame.data.shape[1], 1)
     return np.concatenate([
         (frame.data / 255.0).reshape(layer_shape),
         np.full(layer_shape, frame.yaw / 360.0),
@@ -178,7 +179,8 @@ def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
     ], axis=2)
 
 
-def convert_segment_to_array(segment: FlightSegment, max_altitude: float) -> np.ndarray:
+def convert_segment_to_array(segment: FlightSegment,
+                             max_altitude: float) -> np.ndarray:
     """Converts a flight segment to a numpy array.
 
     Args:
@@ -228,7 +230,7 @@ def reverse_segment(segment: FlightSegment) -> FlightSegment:
 class DataGenerator:
 
     def __init__(self, simulator: FlightSimulator, max_altitude: float,
-            batch_size: int, augment: bool = False):
+                 batch_size: int, augment: bool = False):
         """
         Args:
             simulator: FlightSimulator
@@ -242,7 +244,6 @@ class DataGenerator:
         self.batch_size = batch_size
         self.augment = augment
 
-
     def generate(self, rng: np.random.Generator):
 
         batch = []
@@ -250,9 +251,11 @@ class DataGenerator:
             for segment in self.simulator.generate(rng):
                 batch.append(segment)
                 if len(batch) == self.batch_size:
-                    data = convert_batch_for_nn(batch, max_altitude=self.max_altitude)
+                    data = convert_batch_for_nn(
+                        batch, max_altitude=self.max_altitude)
                     yield data
                     if self.augment:
-                        reversed_batch = [ reverse_segment(segment) for segment in batch]
+                        reversed_batch = [
+                            reverse_segment(segment) for segment in batch]
                         yield convert_batch_for_nn(reversed_batch, max_altitude=self.max_altitude)
                     batch = []

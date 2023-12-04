@@ -1,23 +1,22 @@
+import h5py
+import numpy as np
+from datasets.hdf5 import DataGenerator, FlightSimulator
+from tensorflow.keras.callbacks import ModelCheckpoint
+from tensorflow.keras.losses import MeanSquaredError
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, BatchNormalization, Dropout
 import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('input', type=str, help='HDF5 basename for the splits')
 args = parser.parse_args()
 
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, BatchNormalization, Dropout
-from tensorflow.keras.models import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import MeanSquaredError
-from tensorflow.keras.callbacks import ModelCheckpoint
-
-from datasets.hdf5 import DataGenerator, FlightSimulator
-
-import numpy as np
-import h5py
 
 # Input consists of a 160x90x6 array.
 # The first 3 channels correspond to the grayscale image, altitude, and heading (yaw).
-# The last 3 channels correspond to the grayscale image, altitude, and heading (yaw) of the next frame.
+# The last 3 channels correspond to the grayscale image, altitude, and
+# heading (yaw) of the next frame.
 
 INPUT_SHAPE = (160, 90, 6)
 
@@ -37,8 +36,11 @@ test_file = h5py.File(TEST_HDF5, 'r')
 
 # Load the data
 train_data = DataGenerator(FlightSimulator(train_file), MAX_ALTITUDE,
-        BATCH_SIZE, augment=True)
-valid_data = DataGenerator(FlightSimulator(valid_file), MAX_ALTITUDE, BATCH_SIZE)
+                           BATCH_SIZE, augment=True)
+valid_data = DataGenerator(
+    FlightSimulator(valid_file),
+    MAX_ALTITUDE,
+    BATCH_SIZE)
 test_data = DataGenerator(FlightSimulator(test_file), MAX_ALTITUDE, BATCH_SIZE)
 
 # Create the model
@@ -87,7 +89,12 @@ model.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.001))
 model.summary()
 
 # Train the model
-checkpoint = ModelCheckpoint(MODEL_PATH, monitor='val_loss', verbose=1, save_best_only=True, mode='min')
+checkpoint = ModelCheckpoint(
+    MODEL_PATH,
+    monitor='val_loss',
+    verbose=1,
+    save_best_only=True,
+    mode='min')
 
 rng = np.random.default_rng(17)
 
@@ -95,12 +102,12 @@ STEPS_PER_EPOCH = 2000
 
 model.fit(
     train_data.generate(rng),
-    steps_per_epoch = STEPS_PER_EPOCH,
+    steps_per_epoch=STEPS_PER_EPOCH,
     validation_data=valid_data.generate(rng),
-    validation_steps = STEPS_PER_EPOCH // 8,
-    epochs = EPOCHS,
-    callbacks = [checkpoint],
-    verbose = 1)
+    validation_steps=STEPS_PER_EPOCH // 8,
+    epochs=EPOCHS,
+    callbacks=[checkpoint],
+    verbose=1)
 
 # Evaluate the model
 # test_generator = test_data.generate(rng)
