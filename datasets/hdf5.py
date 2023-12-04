@@ -56,13 +56,13 @@ def frame_from_dataset(dataset: h5py.Dataset) -> Frame:
 class FlightSimulator:
 
     def __init__(self,
-                 h5filename: str,
+                 h5file,
                  delta_time: tuple[float, float] = (500, 100),
                  max_time: float = 1000):
         """
         Args:
-            h5filename: str
-                Name of the HDF5 file to read from.
+            h5file
+                HDF5 file to read from.
             delta_time: tuple[float, float]
                 Tuple of mean and std time between frames.
             max_time: float
@@ -71,7 +71,7 @@ class FlightSimulator:
                 is started.
         """
 
-        self.h5filename = h5filename
+        self.h5file = h5file
         self.delta_time = delta_time
         self.max_time = max_time
         self.datasets = []
@@ -92,72 +92,71 @@ class FlightSimulator:
     def generate(self, rng: np.random.Generator):
 
         geod = Geodesic.WGS84
+        f = self.h5file
 
-        with h5py.File(self.h5filename, 'r') as f:
+        # Traverse all datasets available in the HDF5 file (alphabetical order)
+        f.visititems(self._visitor)
 
-            # Traverse all datasets available in the HDF5 file (alphabetical order)
-            f.visititems(self._visitor)
+        current = 0
+        while True:
 
-            current = 0
-            while True:
+            if current >= len(self.datasets):
+                return None
 
-                if current >= len(self.datasets):
-                    return None
+            name, dataset = self.datasets[current]
+            # print(f'Current dataset: {name} ({dataset.attrs["time"]})')
 
-                name, dataset = self.datasets[current]
-                # print(f'Current dataset: {name} ({dataset.attrs["time"]})')
+            next_time = dataset.attrs['time'] + rng.normal(*self.delta_time)
+            limit_time = dataset.attrs['time'] + self.max_time
 
-                next_time = dataset.attrs['time'] + rng.normal(*self.delta_time)
-                limit_time = dataset.attrs['time'] + self.max_time
+            # print(f'\tNext time must be between {next_time} and {limit_time}')
 
-                # print(f'\tNext time must be between {next_time} and {limit_time}')
+            after = current + 1
+            while after < len(self.datasets):
 
-                after = current + 1
-                while after < len(self.datasets):
+                _, next_dataset = self.datasets[after]
+                # print(f'\tNext dataset: {next_dataset.name} ({next_dataset.attrs["time"]})')
 
-                    _, next_dataset = self.datasets[after]
-                    # print(f'\tNext dataset: {next_dataset.name} ({next_dataset.attrs["time"]})')
+                if next_dataset.attrs['time'] >= next_time and next_dataset.attrs['time'] < limit_time:
+                    break
 
-                    if next_dataset.attrs['time'] >= next_time and next_dataset.attrs['time'] < limit_time:
-                        break
+                if dataset.attrs['video_filename'] != next_dataset.attrs['video_filename']:
+                    current = after
+                    break
 
-                    if dataset.attrs['video_filename'] != next_dataset.attrs['video_filename']:
-                        current = after
-                        break
+                if next_dataset.attrs['time'] >= limit_time:
+                    current = after
+                    break
 
-                    if next_dataset.attrs['time'] >= limit_time:
-                        current = after
-                        break
+                after += 1
 
-                    after += 1
+            if current == after:
+                continue
 
-                if current == after:
-                    continue
+            if after >= len(self.datasets):
+                return None
 
-                if after >= len(self.datasets):
-                    return None
+            # Calculate the distance between coordinates of the datasets.
+            # Also calculate the angle of displacement (magnetic north).
 
-                # Calculate the distance between coordinates of the datasets.
-                # Also calculate the angle of displacement (magnetic north).
+            lat1 = dataset.attrs['latitude']
+            lon1 = dataset.attrs['longitude']
+            lat2 = next_dataset.attrs['latitude']
+            lon2 = next_dataset.attrs['longitude']
 
-                lat1 = dataset.attrs['latitude']
-                lon1 = dataset.attrs['longitude']
-                lat2 = next_dataset.attrs['latitude']
-                lon2 = next_dataset.attrs['longitude']
+            g = geod.Inverse(lat1, lon1, lat2, lon2)
+            distance = g['s12']
+            bearing = g['azi1']
 
-                g = geod.Inverse(lat1, lon1, lat2, lon2)
-                distance = g['s12']
-                bearing = g['azi1']
+            # Must correct the bearing angle to match the convention used by the gimbal.
+            bearing = bearing if bearing > 0 else 360 + bearing
 
-                # Must correct the bearing angle to match the convention used by the gimbal.
-                bearing = bearing if bearing > 0 else 360 + bearing
-
-                yield FlightSegment(
-                    frames=[frame_from_dataset(dataset), frame_from_dataset(next_dataset)],
-                    distance=distance,
-                    bearing=bearing,
-                )
-                current += 1
+            yield FlightSegment(
+                frames=[frame_from_dataset(dataset), frame_from_dataset(next_dataset)],
+                distance=distance,
+                bearing=bearing,
+            )
+            current += 1
 
 
 def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
@@ -171,10 +170,11 @@ def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
         np.ndarray
             Numpy array with the frame data.
     """
+    layer_shape= (frame.data.shape[0], frame.data.shape[1], 1)
     return np.concatenate([
-        frame.data / 255.0,
-        np.full((frame.data.shape[0], frame.data.shape[1], 1), frame.yaw / 360.0),
-        np.full((frame.data.shape[0], frame.data.shape[1], 1), frame.altitude / max_altitude),
+        (frame.data / 255.0).reshape(layer_shape),
+        np.full(layer_shape, frame.yaw / 360.0),
+        np.full(layer_shape, frame.altitude / max_altitude),
     ], axis=2)
 
 
@@ -195,14 +195,15 @@ def convert_segment_to_array(segment: FlightSegment, max_altitude: float) -> np.
 
 
 def convert_batch_for_nn(batch: list[FlightSegment], max_altitude: float):
-    return np.stack([
-        convert_segment_to_array(segment, max_altitude) for segment in batch
-    ], axis=0)
+    return (
+        np.stack([
+            convert_segment_to_array(segment, max_altitude) for segment in batch], axis=0),
+        np.stack([(segment.distance, segment.bearing / 360.0) for segment in batch], axis=0))
 
 
-class TrainingGenerator:
+class DataGenerator:
 
-    def __init__(self, simulator: FlightSimulator, batch_size: int = 64):
+    def __init__(self, simulator: FlightSimulator, max_altitude: float, batch_size: int):
         """
         Args:
             simulator: FlightSimulator
@@ -212,6 +213,7 @@ class TrainingGenerator:
         """
 
         self.simulator = simulator
+        self.max_altitude = max_altitude
         self.batch_size = batch_size
 
 
@@ -219,8 +221,8 @@ class TrainingGenerator:
 
         batch = []
         while True:
-            for segment in simulator.generate(rng):
+            for segment in self.simulator.generate(rng):
                 batch.append(segment)
                 if len(batch) == self.batch_size:
-                    yield convert_batch_for_nn(batch)
+                    yield convert_batch_for_nn(batch, max_altitude=self.max_altitude)
                     batch = []
