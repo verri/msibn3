@@ -18,11 +18,11 @@ args = parser.parse_args()
 # The last 3 channels correspond to the grayscale image, altitude, and
 # heading (yaw) of the next frame.
 
-INPUT_SHAPE = (160, 90, 6)
+INPUT_SHAPE = (128, 128, 6)
 
-BATCH_SIZE = 64
-EPOCHS = 50
-MAX_ALTITUDE = 150
+BATCH_SIZE = 32
+EPOCHS = 20
+MAX_ALTITUDE = 80
 
 input_file = h5py.File(args.input, 'r')
 
@@ -33,7 +33,7 @@ data = DataGenerator(FlightSimulator(input_file), MAX_ALTITUDE,
 # Create the model
 inputs = Input(shape=INPUT_SHAPE)
 
-x = Conv2D(32, (10, 10), activation='relu', padding='same')(inputs)
+x = Conv2D(32, (9, 9), activation='relu', padding='same')(inputs)
 x = BatchNormalization()(x)
 # x = MaxPooling2D((2, 2))(x)
 
@@ -77,7 +77,7 @@ model.summary()
 
 rng = np.random.default_rng(17)
 
-STEPS_PER_EPOCH = 4000
+STEPS_PER_EPOCH = 2000
 
 model.fit(
     data.generate(rng),
