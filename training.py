@@ -7,14 +7,22 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, BatchNormalization, Dropout
 from config import params
+from datetime import datetime
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('input', type=str, help='HDF5 basename for the splits')
+
+# List of files to use as training set
+parser.add_argument('--training', nargs='+', default=['train'], help='List of files to use as training set')
+# List of files to use as validation set
+parser.add_argument('--validation', nargs='+', default=['val'], help='List of files to use as validation set')
+# List of files to use as test set
+parser.add_argument('--test', nargs='+', default=['test'], help='List of files to use as test set')
+
+parser.add_argument('--seed', type=int, default=42, help='Random seed')
 args = parser.parse_args()
 
-
-# Input consists of a 160x90x8 array.
+# Input consists of a h x w x 8 array.
 # The first 4 channels correspond to the grayscale image, heading (yaw) [x, y], and  altitude.
 # The last 4 channels correspond to the same info of the next frame.
 
@@ -24,24 +32,26 @@ BATCH_SIZE = params.BATCH_SIZE
 EPOCHS = params.EPOCHS
 MAX_ALTITUDE = params.MAX_ALTITUDE
 
-MODEL_PATH = f"{args.input}_checkpoint"
-TRAIN_HDF5 = f"{args.input}_train.h5"
-VALID_HDF5 = f"{args.input}_val.h5"
-TEST_HDF5 = f"{args.input}_test.h5"
+# Name of the model is a timestamp YYYYMMDDHHMMSS
+name = datetime.now().strftime("%Y%m%d%H%M%S")
 
+MODEL_PATH = f"{name}_checkpoint"
+TRAIN_HDF5 = args.training
+VALID_HDF5 = args.validation
+TEST_HDF5 = args.test
 
-train_file = h5py.File(TRAIN_HDF5, 'r')
-valid_file = h5py.File(VALID_HDF5, 'r')
-test_file = h5py.File(TEST_HDF5, 'r')
+train_files = [ h5py.File(file, 'r') for file in TRAIN_HDF5 ]
+valid_files = [ h5py.File(file, 'r') for file in VALID_HDF5 ]
+test_files = [ h5py.File(file, 'r') for file in TEST_HDF5 ]
 
 # Load the data
-train_data = DataGenerator(FlightSimulator(train_file), MAX_ALTITUDE,
+train_data = DataGenerator(FlightSimulator(train_files), MAX_ALTITUDE,
                            BATCH_SIZE, augment=True)
 valid_data = DataGenerator(
-    FlightSimulator(valid_file),
+    FlightSimulator(valid_files),
     MAX_ALTITUDE,
     BATCH_SIZE)
-test_data = DataGenerator(FlightSimulator(test_file), MAX_ALTITUDE, BATCH_SIZE)
+test_data = DataGenerator(FlightSimulator(test_files), MAX_ALTITUDE, BATCH_SIZE)
 
 # Create the model
 inputs = Input(shape=INPUT_SHAPE)
@@ -96,24 +106,27 @@ checkpoint = ModelCheckpoint(
     save_best_only=True,
     mode='min')
 
-rng = np.random.default_rng(17)
+rng = np.random.default_rng(args.seed)
 
-STEPS_PER_EPOCH = 2000
+STEPS_PER_EPOCH = args.STEPS_PER_EPOCH
 
 model.fit(
     train_data.generate(rng),
     steps_per_epoch=STEPS_PER_EPOCH,
     validation_data=valid_data.generate(rng),
-    validation_steps=STEPS_PER_EPOCH // 8,
+    validation_steps=STEPS_PER_EPOCH,
     epochs=EPOCHS,
     callbacks=[checkpoint],
     verbose=1)
 
 # Evaluate the model
-# test_generator = test_data.generate(rng)
-# model.evaluate(list(next(test_generator) for _ in range(STEPS_PER_EPOCH // 8)), verbose=1)
+test_generator = test_data.generate(rng)
+model.evaluate(list(next(test_generator) for _ in range(STEPS_PER_EPOCH)), verbose=1)
 
 # Close the HDF5 files
-train_file.close()
-valid_file.close()
-test_file.close()
+for file in train_files:
+    file.close()
+for file in valid_files:
+    file.close()
+for file in test_files:
+    file.close()
