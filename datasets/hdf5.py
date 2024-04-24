@@ -57,8 +57,8 @@ class FlightSimulator:
 
     def __init__(self,
                  h5files,
-                 delta_time: tuple[float, float] = (500, 100),
-                 max_time: float = 1000):
+                 delta_time: tuple[float, float] = (200, 10),
+                 max_time: float = 300):
         """
         Args:
             h5files
