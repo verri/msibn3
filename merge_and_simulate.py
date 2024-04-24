@@ -21,27 +21,21 @@ args = parser.parse_args()
 
 rng = np.random.default_rng(args.seed)
 
-# Open output file
-with h5py.File(args.output, 'w') as f:
+X = None
+y = None
 
-    f.create_dataset('X', (0, ) + params.INPUT_SHAPE, maxshape=(None,) + params.INPUT_SHAPE, dtype='float32')
-    f.create_dataset('y', (0, 2), maxshape=(None, 2), dtype='float32')
+for filename in args.input:
+    with h5py.File(filename, 'r') as input_file:
+        generator = DataGenerator(FlightSimulator([input_file]), params.MAX_ALTITUDE, None, augment=False)
+        Xnew, ynew = generator.generate_all(rng)
 
-    for filename in args.input:
-        with h5py.File(filename, 'r') as g:
-            print(f'Simulating {filename}')
-            generator = DataGenerator(
-                    FlightSimulator(g),
-                    params.MAX_ALTITUDE,
-                    params.BATCH_SIZE,
-                    augment=True)
+        if X is None:
+            X = Xnew
+            y = ynew
+        else:
+            X = np.vstack((X, Xnew))
+            y = np.vstack((y, ynew))
 
-            for i in range(args.n):
-                print(f'\tSimulation {i}')
-                for X, y in generator.generate(rng):
-                    start_idx = len(f['X'])
-                    f['X'].resize(start_idx + len(X), axis=0)
-                    f['X'][start_idx:] = X
-
-                    f['y'].resize(start_idx + len(y), axis=0)
-                    f['y'][start_idx:] = y
+with h5py.File(args.output, 'w') as output_file:
+    output_file.create_dataset('X', data=X)
+    output_file.create_dataset('y', data=y)

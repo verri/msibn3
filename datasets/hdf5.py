@@ -284,3 +284,12 @@ class DataGenerator:
                         reverse_segment(segment) for segment in batch]
                     yield convert_batch_for_nn(reversed_batch, max_altitude=self.max_altitude)
                 batch = []
+
+
+    def generate_all(self, rng: np.random.Generator):
+        full = []
+        for segment in self.simulator.generate(rng):
+            full.append(segment)
+            if self.augment:
+                full.append(reverse_segment(segment))
+        return convert_batch_for_nn(full, max_altitude=self.max_altitude)

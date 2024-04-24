@@ -12,12 +12,9 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-# List of files to use as training set
-parser.add_argument('--training', nargs='+', default=['train'], help='List of files to use as training set')
-# List of files to use as validation set
-parser.add_argument('--validation', nargs='+', default=['val'], help='List of files to use as validation set')
-# List of files to use as test set
-parser.add_argument('--test', nargs='+', default=['test'], help='List of files to use as test set')
+parser.add_argument('--training', nargs='+', help='List of files to use as training set')
+parser.add_argument('--validation', help='File to use as validation set')
+parser.add_argument('--test', help='File to use as test set')
 
 parser.add_argument('--seed', type=int, default=42, help='Random seed')
 args = parser.parse_args()
@@ -41,17 +38,12 @@ VALID_HDF5 = args.validation
 TEST_HDF5 = args.test
 
 train_files = [ h5py.File(file, 'r') for file in TRAIN_HDF5 ]
-valid_files = [ h5py.File(file, 'r') for file in VALID_HDF5 ]
-test_files = [ h5py.File(file, 'r') for file in TEST_HDF5 ]
+valid_file = h5py.File(VALID_HDF5, 'r')
+test_file = h5py.File(TEST_HDF5, 'r')
 
 # Load the data
 train_data = DataGenerator(FlightSimulator(train_files), MAX_ALTITUDE,
                            BATCH_SIZE, augment=True)
-valid_data = DataGenerator(
-    FlightSimulator(valid_files),
-    MAX_ALTITUDE,
-    BATCH_SIZE)
-test_data = DataGenerator(FlightSimulator(test_files), MAX_ALTITUDE, BATCH_SIZE)
 
 # Create the model
 inputs = Input(shape=INPUT_SHAPE)
@@ -95,7 +87,7 @@ x = Dense(2)(x)
 model = Model(inputs=inputs, outputs=x)
 
 # Compile the model
-model.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.001))
+model.compile(loss=MeanSquaredError(), optimizer=Adam(learning_rate=0.01))
 model.summary()
 
 # Train the model
@@ -113,18 +105,16 @@ STEPS_PER_EPOCH = params.STEPS_PER_EPOCH
 model.fit(
     train_data.generate(rng),
     steps_per_epoch=STEPS_PER_EPOCH,
-    validation_data=valid_data.generate_single(rng),
+    validation_data=(valid_file['X'], valid_file['y']),
     epochs=EPOCHS,
     callbacks=[checkpoint],
     verbose=1)
 
 # Evaluate the model
-model.evaluate(test_data.generate_single(rng), verbose=1)
+model.evaluate(test_file['X'], test_file['y'], verbose=1)
 
 # Close the HDF5 files
 for file in train_files:
     file.close()
-for file in valid_files:
-    file.close()
-for file in test_files:
-    file.close()
+valid_file.close()
+test_file.close()
