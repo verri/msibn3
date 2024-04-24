@@ -6,10 +6,13 @@ library(tidyverse)
 args <- commandArgs(trailingOnly = TRUE)
 input_file <- args[1]
 output_file <- args[2]
+first <- as.numeric(args[3])
+last <- as.numeric(args[4])
 
 # Read data
 data <-
   read_csv(input_file) %>%
+  filter(row_number() > first, row_number() < last) %>%
   mutate_all(cumsum)
 
 p <-
