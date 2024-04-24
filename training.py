@@ -108,7 +108,7 @@ checkpoint = ModelCheckpoint(
 
 rng = np.random.default_rng(args.seed)
 
-STEPS_PER_EPOCH = args.STEPS_PER_EPOCH
+STEPS_PER_EPOCH = params.STEPS_PER_EPOCH
 
 model.fit(
     train_data.generate(rng),
