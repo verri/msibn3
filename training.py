@@ -113,15 +113,13 @@ STEPS_PER_EPOCH = params.STEPS_PER_EPOCH
 model.fit(
     train_data.generate(rng),
     steps_per_epoch=STEPS_PER_EPOCH,
-    validation_data=valid_data.generate(rng),
-    validation_steps=STEPS_PER_EPOCH,
+    validation_data=valid_data.generate_single(rng),
     epochs=EPOCHS,
     callbacks=[checkpoint],
     verbose=1)
 
 # Evaluate the model
-test_generator = test_data.generate(rng)
-model.evaluate(list(next(test_generator) for _ in range(STEPS_PER_EPOCH)), verbose=1)
+model.evaluate(test_data.generate_single(rng), verbose=1)
 
 # Close the HDF5 files
 for file in train_files:

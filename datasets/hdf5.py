@@ -221,6 +221,13 @@ def convert_batch_for_nn(batch: list[FlightSegment], max_altitude: float):
         np.stack([polar2cartesian((segment.distance, segment.bearing)) for segment in batch], axis=0))
 
 
+def convert_for_nn(segment: FlightSegment, max_altitude: float):
+    return (
+        convert_segment_to_array(segment, max_altitude),
+        np.array(polar2cartesian((segment.distance, segment.bearing)))
+    )
+
+
 def reverse_segment(segment: FlightSegment) -> FlightSegment:
     return FlightSegment(
         frames=[segment.frames[1], segment.frames[0]],
@@ -261,3 +268,19 @@ class DataGenerator:
                             reverse_segment(segment) for segment in batch]
                         yield convert_batch_for_nn(reversed_batch, max_altitude=self.max_altitude)
                     batch = []
+
+
+    def generate_single(self, rng: np.random.Generator):
+
+        batch = []
+        for segment in self.simulator.generate(rng):
+            batch.append(segment)
+            if len(batch) == self.batch_size:
+                data = convert_batch_for_nn(
+                    batch, max_altitude=self.max_altitude)
+                yield data
+                if self.augment:
+                    reversed_batch = [
+                        reverse_segment(segment) for segment in batch]
+                    yield convert_batch_for_nn(reversed_batch, max_altitude=self.max_altitude)
+                batch = []
