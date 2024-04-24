@@ -6,6 +6,7 @@ from tensorflow.keras.losses import MeanSquaredError
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense, BatchNormalization, Dropout
+from config import params
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -13,16 +14,15 @@ parser.add_argument('input', type=str, help='HDF5 basename for the splits')
 args = parser.parse_args()
 
 
-# Input consists of a 160x90x6 array.
-# The first 3 channels correspond to the grayscale image, altitude, and heading (yaw).
-# The last 3 channels correspond to the grayscale image, altitude, and
-# heading (yaw) of the next frame.
+# Input consists of a 160x90x8 array.
+# The first 4 channels correspond to the grayscale image, heading (yaw) [x, y], and  altitude.
+# The last 4 channels correspond to the same info of the next frame.
 
-INPUT_SHAPE = (160, 90, 6)
+INPUT_SHAPE = params.INPUT_SHAPE
 
-BATCH_SIZE = 64
-EPOCHS = 50
-MAX_ALTITUDE = 150
+BATCH_SIZE = params.BATCH_SIZE
+EPOCHS = params.EPOCHS
+MAX_ALTITUDE = params.MAX_ALTITUDE
 
 MODEL_PATH = f"{args.input}_checkpoint"
 TRAIN_HDF5 = f"{args.input}_train.h5"

@@ -172,10 +172,12 @@ def convert_frame_to_array(frame: Frame, max_altitude: float) -> np.ndarray:
             Numpy array with the frame data.
     """
     layer_shape = (frame.data.shape[0], frame.data.shape[1], 1)
+    yawx, yawy = polar2cartesian((1, frame.yaw))
     return np.concatenate([
         (frame.data / 255.0).reshape(layer_shape),
-        np.full(layer_shape, frame.yaw / 360.0),
-        np.full(layer_shape, frame.altitude / max_altitude),
+        np.full(layer_shape, yawx),
+        np.full(layer_shape, yawy),
+        np.full(layer_shape, min(1.0, frame.altitude / max_altitude)),
     ], axis=2)
 
 
